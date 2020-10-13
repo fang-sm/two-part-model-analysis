@@ -1,0 +1,71 @@
+twoPart_parametric	=	function(rarefyOTU=NULL, trait=NULL, covariates=NULL, log2.transform=T) {
+	if (is.null(rarefyOTU) | is.null(trait) ) {
+		cat ("rarefyOTU\n")
+		cat("trait\n")
+		cat("covariates\n")
+		stop()
+	}
+	k	=	length(rarefyOTU)
+	k0	=	which(rarefyOTU == 0 )
+	k1	=	which(rarefyOTU	> 0 )
+	p1	=	c(0, 0, 0, 1)
+	p2	=	c(0, 0, 0, 1)
+	if (length(k0)>= 20 & length(k1)>=20) {
+		c1	=	rep(0, length=length(rarefyOTU))
+		c1[k1]	=	1
+		if (is.null(covariates)) {
+			model1	=	lm(trait~c1)
+		} else {
+			model1	=	lm(trait~covariates+c1)
+		}
+		if(is.element("c1", rownames(summary(model1)$coefficients))) {
+			p1		=	summary(model1)$coefficients["c1",]
+		}
+	}
+	if (length(k1)>= 20) {
+		if (log2.transform) {
+			c2	=	log2(rarefyOTU[k1])
+		} else c2	=	rarefyOTU[k1]
+		if (is.null(covariates)) {
+			model2	=	lm(trait[k1]~c2)
+		} else {
+			model2	=	lm(trait[k1]~covariates[k1,]+c2)
+		}
+		if(is.element("c2", rownames(summary(model2)$coefficients))) {
+			p2		=	summary(model2)$coefficients["c2",]
+		}
+	}
+	p1.z	=	abs(qnorm(p1[4]/2))
+	p2.z	=	abs(qnorm(p2[4]/2))
+	if (!is.na(p1[3]) & p1[3]<0) p1.z = -1*p1.z
+	if (!is.na(p2[3]) & p2[3]<0) p2.z	=	-1*p2.z
+	w.meta.z		=	(p1.z*k+p2.z*length(k1))/sqrt(k^2+length(k1)^2)
+	w.meta.p		=	(1-pnorm(abs(w.meta.z)))*2
+	uw.meta.z		=	(p1.z+p2.z)/sqrt(2)
+	uw.meta.p		=	(1-pnorm(abs(uw.meta.z)))*2
+	minP			=	min(c(p1[4], p2[4], uw.meta.p))
+	z	=	c(p1.z, p2.z, uw.meta.z)
+	asso.z	=	z[which(abs(z)==max(abs(z)))]
+		
+	result	=	data.frame(
+		absentN			=	length(k0),
+		presentN		=	length(k1),
+		meanPresentedCounts		=	mean(rarefyOTU[k1]),
+		p1.estimate		=	p1[1],
+		p1.se			=	p1[2],
+		p1.tvalue		=	p1[3],
+		p1.pvalue		=	p1[4],
+		p2.estimate		=	p2[1],
+		p2.se			=	p2[2],
+		p2.tvalue		=	p2[3],
+		p2.pvalue		=	p2[4],
+		p.combine		= 	sqrt(p1[4]*p2[4]),
+		w.meta.z			=	w.meta.z,
+		w.meta.p			=	w.meta.p,
+		uw.meta.z			=	uw.meta.z,
+		uw.meta.p			=	uw.meta.p,
+		asso.z	=	asso.z,
+		asso.P	=	minP)
+		
+	return(result)
+}
